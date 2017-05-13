@@ -30,7 +30,7 @@ static int cdata_open(struct inode *inode, struct file *filp)
 
 	printk(KERN_ALERT "cdata in open: filp = %p\n", filp);
 
-	cdata = kmalloc(sizeof(*cdata), GFP_KERNEL);
+	cdata = kzalloc(sizeof(*cdata), GFP_KERNEL);
 	cdata->idx = 0;
 
 	filp->private_data = (void *)cdata;
@@ -40,7 +40,12 @@ static int cdata_open(struct inode *inode, struct file *filp)
 
 static int cdata_close(struct inode *inode, struct file *filp)
 {
-	printk(KERN_ALERT "cdata in close\n");
+	struct cdata_t *cdata = (struct cdata_t *)filp->private_data;
+
+	printk(KERN_ALERT "buf: %s\n", cdata->buf);
+
+	kfree(cdata);
+	
 	return 0;
 }
 
@@ -61,7 +66,12 @@ static ssize_t cdata_write(struct file *filp, const char __user *user,
 	idx = cdata->idx;
 
 	for (i = 0; i < size; i++) {
-		cdata->buf[idx] = user[i];
+		if (idx > (BUF_SIZE - 1)) {
+			current->state = TASK_INTERRUPTIBLE;
+			schedule();
+		}
+		copy_from_user(&cdata->buf[idx], &user[i], 1);
+
 		idx++;
 	}
 

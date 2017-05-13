@@ -8,9 +8,18 @@ int main(void)
     pid_t child;
 
     child = fork();
-
     fd = open("/dev/cdata", O_RDWR);
-    write(fd, "he", 2);
-    write(fd, "llo", 3);
+
+    if (child != 0) {
+        write(fd, "h", 1);
+        write(fd, "e", 1);
+	sleep(1);
+        write(fd, "l", 1);
+        write(fd, "l", 1);
+        write(fd, "o", 1);
+    } else {
+        write(fd, "12345", 5);
+    }
+
     close(fd);
 }
