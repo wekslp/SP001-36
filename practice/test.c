@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
-//#include "cdata_ioctl.h"
+#include "cdata_ioctl.h"
 
-#define IOCTL 0
+#define IOCTL 1
 
 int main(void)
 {
@@ -23,7 +23,7 @@ int main(void)
 #if IOCTL
 	ioctl(fd, IOCTL_EMPTY, 0);
 
-	write(fd, str, strlen(str));
+//	write(fd, str, strlen(str));
 	//ioctl(fd, IOCTL_NAME, &data);
 	ioctl(fd, IOCTL_SYNC, 0);
 

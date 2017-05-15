@@ -20,9 +20,19 @@
 #include <linux/slab.h> //kmalloc
 #include <asm/io.h>
 #include <asm/uaccess.h>
+#include "cdata_ioctl.h"
 
 #define MAJOR_NUMBER	121
 #define DEVICE_NAME		"cdata"
+
+#define MAX_BUFSIZE		32
+
+static DEFINE_MUTEX(ioctl_lock);
+
+struct cdata_t {
+	char 	buf[MAX_BUFSIZE];
+	int 	idx;
+};
 
 static size_t cdata_read(struct file *filp, char __user *user, size_t size, loff_t *off)
 {
@@ -32,23 +42,69 @@ static size_t cdata_read(struct file *filp, char __user *user, size_t size, loff
 
 static size_t cdata_write(struct file *filp, const char __user *user, size_t size, loff_t *off)
 {
-	printk(KERN_INFO "<%p> cdata_write\n", filp);
+	struct cdata_t *cdata;
+	int idx;
+	int i;
+	char *buf;
+
+	cdata = (struct cdata_t *)filp->private_data;
+	idx = cdata->idx;
+	buf = cdata->buf;
+
+	for (i = 0;i < size; i++) {
+		if (idx > (MAX_BUFSIZE-1))
+			return -1;
+		copy_from_user(&buf[idx], &user[i], 1);
+		idx++;
+	}
+	
+	cdata->idx = idx;
+	
+	printk(KERN_INFO "<%p> cdata_write: %s\n", filp, buf);
 	return 0;
 }
 
 static long cdata_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
+	int ret;
+
+	ret = 0;
+	
+	switch (cmd) {
+	case IOCTL_EMPTY:
+		printk(KERN_INFO "IOCTL_EMPTY\n");
+		break;
+	case IOCTL_SYNC:
+		printk(KERN_INFO "IOCTL_SYNC\n");
+		break;
+	case IOCTL_NAME:	
+		printk(KERN_INFO "IOCTL_NAME\n");
+		break;
+	default:
+		ret = -1;
+	}
+	return ret;
 }
 
 static int cdata_open(struct inode *inode, struct file *filp)
 {
 	printk(KERN_INFO "<%p> cdata open\n", filp);
+	struct cdata_t *cdata;
+	
+	/* initial data */
+	cdata = kzalloc(sizeof(struct cdata_t), GFP_KERNEL);
+	cdata->idx = 0;
+	
+	filp->private_data = (void *)cdata;
 	return 0;
 }
 
 static int cdata_close(struct inode *inode, struct file *filp)
 {
-	printk(KERN_INFO "<%p> cdata_close\n", filp);
+	struct cdata_t *cdata;
+	cdata = (struct cdata_t *)filp->private_data;
+	printk(KERN_INFO "<%p> cdata_close: %s\n", filp, cdata->buf);
+	kfree(filp->private_data);
 	return 0;
 }
 
