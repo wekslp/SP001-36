@@ -33,8 +33,9 @@
 static DEFINE_MUTEX(ioctl_lock);
 
 struct cdata_t {
-	char 	buf[MAX_BUFSIZE];
-	int 	idx;
+	char				buf[MAX_BUFSIZE];
+	int					idx;
+	wait_queue_head_t	writeable;
 };
 
 static size_t cdata_read(struct file *filp, char __user *user, size_t size, loff_t *off)
@@ -48,15 +49,22 @@ static size_t cdata_write(struct file *filp, const char __user *user, size_t siz
 	struct cdata_t *cdata;
 	int idx;
 	int i;
+	int ret;
 	char *buf;
-
+	DECLARE_WAITQUEUE(wait, current);
 	cdata = (struct cdata_t *)filp->private_data;
 	idx = cdata->idx;
 	buf = cdata->buf;
 
 	for (i = 0;i < size; i++) {
-		if (idx > (MAX_BUFSIZE-1))
-			return -1;
+		if (idx > (MAX_BUFSIZE-1)){
+			add_wait_queue(&cdata->writeable, &wait);
+			current->state = TASK_INTERRUPTIBLE;
+			
+			schedule();/* return cpu resource and do prcoess context switch */
+			
+			remove_wait_queue(&cdata->writeable, &wait);
+		}
 		copy_from_user(&buf[idx], &user[i], 1);
 		idx++;
 	}
@@ -64,7 +72,9 @@ static size_t cdata_write(struct file *filp, const char __user *user, size_t siz
 	cdata->idx = idx;
 	
 	printk(KERN_INFO "<%p> cdata_write: %s\n", filp, buf);
-	return 0;
+	ret = 0;
+fail:
+	return ret;
 }
 
 static long cdata_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
@@ -97,7 +107,7 @@ static int cdata_open(struct inode *inode, struct file *filp)
 	/* initial data */
 	cdata = kzalloc(sizeof(struct cdata_t), GFP_KERNEL);
 	cdata->idx = 0;
-	
+	init_waitqueue_head(&cdata->writeable);	
 	filp->private_data = (void *)cdata;
 	return 0;
 }
