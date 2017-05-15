@@ -23,10 +23,10 @@
 #include <linux/platform_device.h>
 #include "cdata_ioctl.h"
 
-#define MAJOR_NUMBER	121
-#define DEVICE_NAME		"cdata"
+#define MAJOR_NUMBER			121
+#define DEVICE_NAME				"cdata"
 
-#define MAX_BUFSIZE		32
+#define MAX_BUFSIZE				32
 
 #define USE_PLATFORM_DRIVER		1
 
@@ -36,6 +36,7 @@ struct cdata_t {
 	char				buf[MAX_BUFSIZE];
 	int					idx;
 	wait_queue_head_t	writeable;
+	struct timer_list	timer;
 };
 
 static size_t cdata_read(struct file *filp, char __user *user, size_t size, loff_t *off)
@@ -44,26 +45,53 @@ static size_t cdata_read(struct file *filp, char __user *user, size_t size, loff
 	return 0;
 }
 
+void *write_framebuffer(unsigned long arg)
+{
+	printk(KERN_INFO "write_framebuffer\n");
+	struct cdata_t *cdata = (struct cdata_t *)arg;
+
+	/* write to hardware is done, reset the length */
+	cdata->idx = 0;
+
+	/* wake up queue process */
+	wake_up_interruptible(&cdata->writeable);
+}
+
 static size_t cdata_write(struct file *filp, const char __user *user, size_t size, loff_t *off)
 {
 	struct cdata_t *cdata;
+	struct timer_list *timer;
 	int idx;
 	int i;
 	int ret;
 	char *buf;
+	
 	DECLARE_WAITQUEUE(wait, current);
+	
 	cdata = (struct cdata_t *)filp->private_data;
 	idx = cdata->idx;
 	buf = cdata->buf;
+	timer = &cdata->timer;
 
 	for (i = 0;i < size; i++) {
 		if (idx > (MAX_BUFSIZE-1)){
 			add_wait_queue(&cdata->writeable, &wait);
 			current->state = TASK_INTERRUPTIBLE;
 			
-			schedule();/* return cpu resource and do prcoess context switch */
+			/* timer_list */
+			timer->data = (unsigned long)cdata;
+			timer->expires = 1;
+			timer->function = write_framebuffer;
+			add_timer(timer);
+			/* end */
+
+			/* return cpu resource and do process context switch */
+			schedule();
 			
 			remove_wait_queue(&cdata->writeable, &wait);
+			
+			/* if data is transfer to hardware, we have to update the index */
+			idx = cdata->idx;
 		}
 		copy_from_user(&buf[idx], &user[i], 1);
 		idx++;
@@ -107,7 +135,15 @@ static int cdata_open(struct inode *inode, struct file *filp)
 	/* initial data */
 	cdata = kzalloc(sizeof(struct cdata_t), GFP_KERNEL);
 	cdata->idx = 0;
-	init_waitqueue_head(&cdata->writeable);	
+	
+	/* wait queue */
+	init_waitqueue_head(&cdata->writeable);
+	/* end */
+	
+	/* timer_list */
+	init_timer(&cdata->timer);
+	/* end */
+
 	filp->private_data = (void *)cdata;
 	return 0;
 }
@@ -117,6 +153,11 @@ static int cdata_close(struct inode *inode, struct file *filp)
 	struct cdata_t *cdata;
 	cdata = (struct cdata_t *)filp->private_data;
 	printk(KERN_INFO "<%p> cdata_close: %s\n", filp, cdata->buf);
+	
+	/* timer_list */
+	del_timer(&cdata->timer);
+	/* end */
+
 	kfree(filp->private_data);
 	return 0;
 }

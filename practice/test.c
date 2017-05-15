@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include "cdata_ioctl.h"
 
-#define IOCTL 1
+#define IOCTL 0
 
 int main(void)
 {
