@@ -20,12 +20,15 @@
 #include <linux/slab.h> //kmalloc
 #include <asm/io.h>
 #include <asm/uaccess.h>
+#include <linux/platform_device.h>
 #include "cdata_ioctl.h"
 
 #define MAJOR_NUMBER	121
 #define DEVICE_NAME		"cdata"
 
 #define MAX_BUFSIZE		32
+
+#define USE_PLATFORM_DRIVER		1
 
 static DEFINE_MUTEX(ioctl_lock);
 
@@ -117,19 +120,64 @@ static struct file_operations cdata_fops = {
 	release:		 	cdata_close
 };
 
+static struct miscdevice cdata_miscdev = {
+	.minor	= 77,
+	.name	= "cdata-misc",
+	.fops	= &cdata_fops,
+};
+
+static int cdata_plat_probe(struct platform_device *pdev)
+{
+	int ret;
+	ret = misc_register(&cdata_miscdev);
+	if (ret < 0) {
+		printk(KERN_ALERT "cdata_plat_probe failed\n");
+		goto exit;
+	}
+	printk(KERN_INFO "cdata_plat_probe success\n");
+exit:
+	return ret;
+}
+
+static int cdata_plat_remove(struct platfor_device *pdev)
+{
+	misc_deregister(&cdata_miscdev);
+	printk(KERN_INFO "cdata_plat_remove\n");
+}
+
+static struct platform_driver cdata_platform_driver = {
+	.probe = cdata_plat_probe,
+	.remove = cdata_plat_remove,
+	.driver = {
+		.name = "cdata",
+		.owner = THIS_MODULE,
+	}
+};
+
 int cdata_init_module(void)
 {
+#if USE_PLATFORM_DRIVER
+	if (platform_driver_register(&cdata_platform_driver) < 0) {
+		printk(KERN_ALERT "platform driver register failed\n");
+		return -1;
+	}
+#else
 	if (register_chrdev(MAJOR_NUMBER, DEVICE_NAME, &cdata_fops) < 0) {
 		printk(KERN_ALERT "cdata register failed\n");
 		return -1;
 	}
+#endif
 	printk(KERN_INFO "cdata register\n");
 	return 0 ;
 }
 
 void cdata_cleanup_module(void)
 {
+#if USE_PLATFORM_DRIVER
+	platform_driver_unregister(&cdata_platform_driver);
+#else
 	unregister_chrdev(MAJOR_NUMBER, DEVICE_NAME);
+#endif
 	printk(KERN_INFO "cdata cleanup module\n");
 }
 

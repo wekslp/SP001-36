@@ -14,7 +14,7 @@ int main(void)
 #if 1
 	child = fork();
     printf("child: %d\n", child);
-	fd = open("/dev/cdata", O_RDWR);
+	fd = open("/dev/cdata-misc", O_RDWR);
 #else
 	fd = open("/dev/cdata", O_RDWR);
 	child = fork();

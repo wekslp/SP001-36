@@ -1,4 +1,4 @@
-obj-m := cdata.o
+obj-m := cdata.o cdata_plat_dev.o
 
 KDIR := /usr/src/linux-headers-3.16.0-77-generic
 PWD := $(shell pwd)
