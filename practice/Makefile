@@ -1,6 +1,6 @@
 obj-m := cdata.o cdata_plat_dev.o
 
-KDIR := /usr/src/linux-headers-3.16.0-77-generic
+KDIR := /usr/src/linux-headers-`uname -r`
 PWD := $(shell pwd)
 
 default:
