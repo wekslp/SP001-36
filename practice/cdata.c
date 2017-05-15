@@ -27,6 +27,7 @@
 #define DEVICE_NAME				"cdata"
 
 #define MAX_BUFSIZE				32
+#define MAX_FRAMBUFFER			1024*768*2
 
 #define USE_PLATFORM_DRIVER		1
 
@@ -37,6 +38,7 @@ struct cdata_t {
 	int					idx;
 	wait_queue_head_t	writeable;
 	struct timer_list	timer;
+	unsigned char		*iomem;
 };
 
 static size_t cdata_read(struct file *filp, char __user *user, size_t size, loff_t *off)
@@ -49,9 +51,20 @@ void *write_framebuffer(unsigned long arg)
 {
 	printk(KERN_INFO "write_framebuffer\n");
 	struct cdata_t *cdata = (struct cdata_t *)arg;
-
+	unsigned char *iomem;
+	int i;
 	/* write to hardware is done, reset the length */
 	cdata->idx = 0;
+	
+	/* 
+	 * framebuffer 
+	 * need to add "vga=791" to boot command line
+	*/
+
+	iomem = cdata->iomem;
+	for (i = 0;i < (MAX_FRAMBUFFER-1); i++) {
+		writeb(0x02, iomem+i);
+	}
 
 	/* wake up queue process */
 	wake_up_interruptible(&cdata->writeable);
@@ -59,13 +72,15 @@ void *write_framebuffer(unsigned long arg)
 
 static size_t cdata_write(struct file *filp, const char __user *user, size_t size, loff_t *off)
 {
+	printk(KERN_INFO "cdata_write\n");
 	struct cdata_t *cdata;
 	struct timer_list *timer;
 	int idx;
 	int i;
 	int ret;
 	char *buf;
-	
+	unsigned char *iomem;
+
 	DECLARE_WAITQUEUE(wait, current);
 	
 	cdata = (struct cdata_t *)filp->private_data;
@@ -143,6 +158,8 @@ static int cdata_open(struct inode *inode, struct file *filp)
 	/* timer_list */
 	init_timer(&cdata->timer);
 	/* end */
+
+	cdata->iomem = ioremap(0xa0000000, MAX_FRAMBUFFER);
 
 	filp->private_data = (void *)cdata;
 	return 0;

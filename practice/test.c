@@ -5,6 +5,8 @@
 
 #define IOCTL 0
 
+#define FORK	0
+
 int main(void)
 {
     int fd;
@@ -12,7 +14,9 @@ int main(void)
     pid_t child;
 	char *str = "hello";
 #if 1
+#if FORK
 	child = fork();
+#endif
     printf("child: %d\n", child);
 	fd = open("/dev/cdata-misc", O_RDWR);
 #else
@@ -31,7 +35,9 @@ int main(void)
 #else
 	write(fd, str, strlen(str));
 	write(fd, "test", 4);
+#if FORK
 	if (child != 0)//parent process
+#endif
 		write(fd, "123456789012345678901234567890", 30);
 	//read(fd, buffer, 128);
 	//ioctl(fd, 123, 123);
