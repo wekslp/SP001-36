@@ -134,9 +134,14 @@ static size_t cdata_write(struct file *filp, const char __user *user, size_t siz
 
 	for (i = 0;i < size; i++) {
 		if (idx > (MAX_BUFSIZE-1)){
+#if 0
+			/* may cause hardware interrupt */
 			add_wait_queue(&cdata->writeable, &wait);
 			current->state = TASK_INTERRUPTIBLE;
-			
+#else
+			/* instead of new kernel api */
+			prepare_to_wait(&cdata->writeable, &wait, TASK_INTERRUPTIBLE);
+#endif
 			/* timer_list */
 			//timer->data = (unsigned long)cdata;
 			//timer->expires = 1;
@@ -150,9 +155,11 @@ static size_t cdata_write(struct file *filp, const char __user *user, size_t siz
 
 			/* return cpu resource and do process context switch */
 			schedule();
-
+#if 0
 			remove_wait_queue(&cdata->writeable, &wait);
-			
+#else
+			finish_wait(&cdata->writeable, &wait);
+#endif
 			/* if data is transfer to hardware, we have to update the index */
 			idx = cdata->idx;
 
@@ -212,9 +219,14 @@ static int cdata_open(struct inode *inode, struct file *filp)
 	/* timer_list */
 	init_timer(&cdata->timer);
 	/* end */
+	/* mutex init */
 	mutex_init(&cdata->write_lock);
+	
+	/* work queue */
 	INIT_WORK(&cdata->work, write_framebuffer_with_work);
-	//init_kfifo(
+	
+	
+	INIT_KFIFO(cdata->out_fifo);
 	/* map physical address to virtual address */
 	cdata->iomem = ioremap(FRAMEBUFFER_IO_MEM, MAX_FRAMBUFFER);
 
@@ -247,8 +259,9 @@ static int cdata_mmap(struct file *filp, struct vm_area_struct *vma)
 	end = vma->vm_end;
 	size = end - start;
 	printk(KERN_INFO "MMAP: %d\n", size);
-#if 0
-	if (remap_pfn_range(vma, vma->vm_start, FRAMEBUFFER_IO_MEM, size, vma->vm_page_prot) < 0)
+	/* remap_pfn_range : pfn: page of numbers */
+#if 1 
+	if (remap_pfn_range(vma, vma->vm_start, FRAMEBUFFER_IO_MEM >> PAGE_SHIFT, size, vma->vm_page_prot) < 0)
 #else
 	/* with my kernel we need use io_remap_pfn_range */
 	if (io_remap_pfn_range(vma, vma->vm_start, FRAMEBUFFER_IO_MEM >> PAGE_SHIFT, size, vma->vm_page_prot) < 0)

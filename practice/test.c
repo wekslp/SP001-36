@@ -36,7 +36,7 @@ int main(void)
 	write(fd, str, strlen(str));
 	write(fd, "test", 4);
 #if FORK
-	if (child != 0)//parent process
+//	if (child != 0)//parent process
 #endif
 		write(fd, "123456789012345678901234567890", 30);
 	//read(fd, buffer, 128);
